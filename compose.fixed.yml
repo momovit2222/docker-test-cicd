@@ -1,0 +1,22 @@
+version: '3.8'
+services:
+  app:
+    image: ubuntu:latest
+    environment:
+    - DB_PASSWORD=${DB_PASSWORD}
+    - API_KEY=${API_KEY}
+    - SECRET_TOKEN=${SECRET_TOKEN}
+    volumes:
+    - .:/app
+    command: bash -c "apt-get update && apt-get install -y curl && tail -f /dev/null"
+    restart: unless-stopped
+    healthcheck:
+      test:
+      - CMD
+      - curl
+      - -f
+      - http://localhost/
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
