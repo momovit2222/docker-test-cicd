@@ -1,0 +1,99 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: shieldops-test
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: insecure-sa
+  namespace: shieldops-test
+automountServiceAccountToken: true
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: insecure-cluster-admin-lite
+rules:
+  - apiGroups: ["*"]
+    resources: ["*"]
+    verbs: ["*"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: insecure-cluster-admin-lite-binding
+subjects:
+  - kind: ServiceAccount
+    name: insecure-sa
+    namespace: shieldops-test
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: insecure-cluster-admin-lite
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: insecure-web
+  namespace: shieldops-test
+  labels:
+    app: insecure-web
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: insecure-web
+  template:
+    metadata:
+      labels:
+        app: insecure-web
+    spec:
+      serviceAccountName: insecure-sa
+      hostNetwork: true
+      containers:
+        - name: web
+          image: nginx:1.21.6
+          imagePullPolicy: Always
+          securityContext:
+            privileged: true
+            allowPrivilegeEscalation: true
+            readOnlyRootFilesystem: false
+          env:
+            - name: DB_PASSWORD
+              value: "super-secret-password"
+            - name: API_TOKEN
+              value: "plain-text-api-token"
+          volumeMounts:
+            - name: host-root
+              mountPath: /host
+          ports:
+            - containerPort: 80
+        - name: cache
+          image: redis:6.2.6
+          securityContext:
+            allowPrivilegeEscalation: true
+          command: ["redis-server", "--protected-mode", "no"]
+      volumes:
+        - name: host-root
+          hostPath:
+            path: /
+            type: Directory
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: insecure-web-service
+  namespace: shieldops-test
+spec:
+  type: LoadBalancer
+  selector:
+    app: insecure-web
+  ports:
+    - port: 80
+      targetPort: 80
